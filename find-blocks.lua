@@ -15,7 +15,7 @@ end
 
 local cached_scan
 local function scan()
-  local result = peripheral.call("back", "scan")
+  local result = peripheral.call("back", "scan", 8)
   if result then
     cached_scan = result
   end
