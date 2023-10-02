@@ -15,3 +15,14 @@ collect your crops.
 wget https://raw.githubusercontent.com/Fatboychummy-CC/etc-programs/main/basic-farm.lua
 ```
 
+### Find Blocks ([find-blocks.lua](find-blocks.lua))
+A program that will find a block around a scanner. It will return the
+coordinates of the block.
+
+This program is designed for scanning pocket computers (either geoscanner or
+block scanner).
+
+#### Install
+```
+wget https://raw.githubusercontent.com/Fatboychummy-CC/etc-programs/main/find-blocks.lua
+```
