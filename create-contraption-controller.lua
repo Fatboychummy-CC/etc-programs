@@ -45,8 +45,8 @@ local wait_time = 30
 
 local current_state = "idle"
 local w, h = term.getSize()
-local log_win = window.create(term.current(), 1, h - 10, w, 10)
-local main_win = window.create(term.current(), 1, 1, w, h - 11)
+local log_win = window.create(term.current(), 1, h - 9, w, 10)
+local main_win = window.create(term.current(), 1, 1, w, h - 10)
 term.redirect(main_win)
 
 --- Log a message to the log window.
