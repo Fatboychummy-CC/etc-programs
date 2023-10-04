@@ -140,5 +140,7 @@ while true do
   end
 
   log(("Waiting %d seconds before repeating."):format(wait_time))
+  current_state = "waiting"
+  display_state()
   sleep(wait_time)
 end
