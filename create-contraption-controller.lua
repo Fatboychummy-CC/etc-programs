@@ -64,10 +64,12 @@ end
 local function wait_for_redstone_pulse(side, timeout)
   local timer = os.startTimer(timeout)
   while true do
-    local event, _side = os.pullEvent()
-    if event == "redstone" and _side == side then
-      return true
-    elseif event == "timer" and _side == timer then
+    local event, id = os.pullEvent()
+    if event == "redstone" then
+      if rs.getInput(side) then
+        return true
+      end
+    elseif event == "timer" and id == timer then
       return false
     end
   end
