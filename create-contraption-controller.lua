@@ -45,14 +45,14 @@ local wait_time = 30
 
 local current_state = "idle"
 local w, h = term.getSize()
-local log_win = window.create(term.current(), 1, h - 9, w, 10)
+local log_win = window.create(term.current(), 1, h - 8, w, 9)
 local main_win = window.create(term.current(), 1, 1, w, h - 10)
 term.redirect(main_win)
 
 --- Log a message to the log window.
 local function log(msg)
   log_win.scroll(1)
-  log_win.setCursorPos(1, 10)
+  log_win.setCursorPos(1, 9)
   log_win.write(msg)
   main_win.restoreCursor()
 end
