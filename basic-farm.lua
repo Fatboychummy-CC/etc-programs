@@ -7,7 +7,7 @@ local GROWN_AGE = 7
 local function find_any_seed()
   for i = 1, 16 do
     local item = turtle.getItemDetail(i)
-    if item and (SEED_NAME and item.name == SEED_NAME or item.name:find("seed")) then
+    if item and (SEED_NAME and item.name == SEED_NAME or not SEED_NAME and item.name:find("seed")) then
       return i
     end
   end
