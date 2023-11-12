@@ -101,7 +101,10 @@ local function build_bridge()
       end
     end
 
-    turtle.forward()
+    if not turtle.forward() then
+      print("Hit a wall, stopping.")
+      return
+    end
     if turtle.detectDown() then
       print("Reached the end of the chasm, stopping.")
       return
