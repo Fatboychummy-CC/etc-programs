@@ -1,5 +1,5 @@
 -- CHANGE DEPENDING ON YOUR CROP
-local SEED_NAME = "minecraft:wheat_seeds" -- Set this to nil to select any item with the word "seed" in its name
+local SEED_NAME = nil -- "minecraft:wheat_seeds" -- Set this to nil to select any item with the word "seed" in its name
 local GROWN_AGE = 7
 
 --- Find any seed in the inventory, and return the slot number. Returns nil if no seeds are found.
@@ -7,7 +7,7 @@ local GROWN_AGE = 7
 local function find_any_seed()
   for i = 1, 16 do
     local item = turtle.getItemDetail(i)
-    if item and (SEED_NAME and item.name == SEED_NAME or item.name:find("seed")) then
+    if item and (SEED_NAME and item.name == SEED_NAME or not SEED_NAME and item.name:find("seed")) then
       return i
     end
   end
