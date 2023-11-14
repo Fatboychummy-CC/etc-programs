@@ -5,7 +5,7 @@
   the chasm, and will build a bridge across the chasm. It will build the bridge
   out of any block that it has in its inventory, and will stop when it runs out
   of blocks, or it reaches the other end (if it detects blocks below it), or it
-  reaches the max distanced
+  reaches the max distance.
 
   It builds a bridge in the v-shaped pattern below:
 
