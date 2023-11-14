@@ -71,6 +71,12 @@ local function has_item_in_output()
   return not not researcher.list()[2]
 end
 
+--- Check if the researcher has any lost knowledge items in its input slot
+---@return boolean has_item True if there is an item in the input slot, false otherwise
+local function has_item_in_input()
+  return not not researcher.list()[1]
+end
+
 --- Move the item in the output slot of the researcher into the knowledge holder
 ---@return boolean success True if the item was moved, false otherwise
 local function move_item_into_knowledge_holder()
@@ -136,7 +142,9 @@ end
 --- Main function: Combine everything
 local function main()
   -- Loop until the researcher has no more lost knowledge items
-  while not move_knowledge_into_researcher() do
+  while true do
+    local complete = move_knowledge_into_researcher()
+
     -- Wait for the researcher to finish researching
     wait_for_researcher()
 
@@ -150,6 +158,12 @@ local function main()
     end
 
     sleep(0.05)
+
+    -- If no more items can be sent from the knowledge holder, and no more items exist in the researcher, then all lost knowledge items have been researched.
+    if complete and not has_item_in_input() and not has_item_in_output() then
+      print("All lost knowledge items have been researched.")
+      break
+    end
   end
 end
 
