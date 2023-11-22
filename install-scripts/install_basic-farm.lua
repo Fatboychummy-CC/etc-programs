@@ -14,7 +14,7 @@ local PASTE_URL = "https://pastebin.com/raw/"
 local PINESTORE_ROOT = "https://pinestore.cc/"
 local PINESTORE_PROJECT_ENDPOINT = PINESTORE_ROOT .. "api/project/"
 local PINESTORE_DOWNLOAD_ENDPOINT = PINESTORE_ROOT .. "api/log/download"
-local p_dir = ... or fs.getDir(shell.getRunningProgram())
+local p_dir = ... or fs.getDir(shell.dir())
 
 local function print_warning(...)
   term.setTextColor(colors.orange)
@@ -125,7 +125,7 @@ if pinestore_id then
   end
 end
 
-write(("Going to install to:\n  /%s\n\nIs this where you want it to be installed? (y/n): "):format(fs.combine(p_dir, "*")))
+write(("Going to install to:\n  /%s\n\nIs this where you want it to be installed? (y/n): "):format("/" .. fs.combine(p_dir, "*")))
 
 local key
 repeat
