@@ -14,13 +14,31 @@ local pinestore_id = nil -- Set this to the ID of the pinestore project if you w
 local RAW_URL_LIBRARIES = "https://raw.githubusercontent.com/Fatboychummy-CC/Libraries/main/"
 local RAW_URL_PROGRAMS = "https://raw.githubusercontent.com/Fatboychummy-CC/etc-programs/main/"
 local PASTE_URL = "https://pastebin.com/raw/"
-local PINESTORE_DOWNLOAD_ENDPOINT = "https://pinestore.cc/api/log/download"
+local PINESTORE_ROOT = "https://pinestore.cc/"
+local PINESTORE_PROJECT_ENDPOINT = PINESTORE_ROOT .. "api/project/"
+local PINESTORE_DOWNLOAD_ENDPOINT = PINESTORE_ROOT .. "api/log/download"
 local p_dir = ... or fs.getDir(shell.getRunningProgram())
 
 local function print_warning(...)
   term.setTextColor(colors.orange)
   print(...)
   term.setTextColor(colors.white)
+end
+
+local function parse_pinestore_response(data)
+  local success, response = pcall(textutils.unserializeJSON, data)
+  if not success or not response then
+    print_warning("Failed to parse response from pinestore.")
+    return false
+  end
+
+  if response and not response.success then
+    print_warning("Failed to get information from pinestore.")
+    print_warning(response.error)
+    return false
+  end
+
+  return response
 end
 
 local function download_file(url, filename)
@@ -85,6 +103,31 @@ if p_dir:match("^rom") then
   error("Attempting to install to the ROM. Please rerun but add arguments for install location (or run the installer script in the folder you wish to install to).", 0)
 end
 
+print(("You are about to install %s."):format(program_name))
+
+-- Get the short description of the project from pinestore (if it exists).
+if pinestore_id then
+  local handle = http.get(PINESTORE_PROJECT_ENDPOINT .. tostring(pinestore_id))
+  if handle then
+    local data = parse_pinestore_response(handle.readAll())
+    handle.close()
+
+    if data then
+      if type(data) == "table" and data.project and data.project.description_short then
+        term.setTextColor(colors.white)
+        write("Description from ")
+        term.setTextColor(colors.green)
+        write("PineStore")
+        term.setTextColor(colors.white)
+        print(":")
+        print(data.project.description_short)
+      end
+    end
+  else
+    print_warning("Failed to connect to pinestore.")
+  end
+end
+
 write(("Going to install to:\n  /%s\n\nIs this where you want it to be installed? (y/n): "):format(fs.combine(p_dir, "*")))
 
 local key
@@ -107,18 +150,8 @@ if key == keys.y then
         })
     )
     if handle then
-      local data = handle.readAll()
+      parse_pinestore_response(handle.readAll())
       handle.close()
-
-      local success, response = pcall(textutils.unserializeJSON, data)
-      if not success or not response then
-        print_warning("Failed to parse response from pinestore.")
-      end
-
-      if response and not response.success then
-        print_warning("Failed to note to pinestore that a download has occurred.")
-        print_warning(response.message)
-      end
     else
       print_warning("Failed to connect to pinestore.")
     end
