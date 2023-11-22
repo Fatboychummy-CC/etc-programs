@@ -11,7 +11,8 @@ local pinestore_id = nil -- Set this to the ID of the pinestore project if you w
 
 -- #########################################
 
-local RAW_URL = "https://raw.githubusercontent.com/Fatboychummy-CC/Libraries/main/"
+local RAW_URL_LIBRARIES = "https://raw.githubusercontent.com/Fatboychummy-CC/Libraries/main/"
+local RAW_URL_PROGRAMS = "https://raw.githubusercontent.com/Fatboychummy-CC/etc-programs/main/"
 local PASTE_URL = "https://pastebin.com/raw/"
 local PINESTORE_DOWNLOAD_ENDPOINT = "https://pinestore.cc/api/log/download"
 local p_dir = ... or fs.getDir(shell.getRunningProgram())
@@ -52,8 +53,11 @@ local function get(...)
     local extern_file, extern_url = remote:match("^extern:(.-):(.+)$")
     local paste_file, paste = remote:match("^paste:(.-):(.+)$")
     local local_file, remote_file = remote:match("^L:(.-):(.+)$")
+    local use_libraries = true
+
     if not local_file then
       local_file, remote_file = remote:match("^E:(.-):(.+)$")
+      use_libraries = false
     end
 
     if extern_file then
@@ -65,7 +69,11 @@ local function get(...)
       download_file(PASTE_URL .. textutils.urlEncode(paste) .. "?cb=" .. cb, paste_file)
     elseif local_file then
       -- download from main repository.
-      download_file(RAW_URL .. remote_file, local_file)
+      if use_libraries then
+        download_file(RAW_URL_LIBRARIES .. remote_file, local_file)
+      else
+        download_file(RAW_URL_PROGRAMS .. remote_file, local_file)
+      end
     else
       error(("Could not determine information for '%s'"):format(remote), 0)
     end
