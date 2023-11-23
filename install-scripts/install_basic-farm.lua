@@ -14,7 +14,7 @@ local PASTE_URL = "https://pastebin.com/raw/"
 local PINESTORE_ROOT = "https://pinestore.cc/"
 local PINESTORE_PROJECT_ENDPOINT = PINESTORE_ROOT .. "api/project/"
 local PINESTORE_DOWNLOAD_ENDPOINT = PINESTORE_ROOT .. "api/log/download"
-local p_dir = ... or fs.getDir(shell.dir())
+local p_dir = ... or shell.dir()
 
 local function print_warning(...)
   term.setTextColor(colors.orange)
