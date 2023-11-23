@@ -128,7 +128,7 @@ if pinestore_id then
   end
 end
 
-write(("Going to install to:\n  /%s\n\nIs this where you want it to be installed? (y/n): "):format("/" .. fs.combine(p_dir, "*")))
+write(("Going to install to:\n  /%s\n\nIs this where you want it to be installed? (y/n): "):format(p_dir .. "/*"))
 
 local key
 repeat
