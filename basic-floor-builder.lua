@@ -21,8 +21,12 @@ while true do
   if n >= 4 then
     if ... then
       turtle.down()
+      get_item()
+      turtle.placeUp()
     else
       turtle.up()
+      get_item()
+      turtle.placeDown()
     end
     return
   end
