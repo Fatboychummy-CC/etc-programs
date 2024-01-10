@@ -55,6 +55,19 @@ blocks.
 wget https://raw.githubusercontent.com/Fatboychummy-CC/etc-programs/main/rftools-dimensions-researcher.lua
 ```
 
+### Basic Floor Builder ([basic-floor-builder.lua](basic-floor-builder.lua))
+A simple program which builds a square floor for a room. 
+
+Place the turtle in any corner of the room so its right and front sides are facing the wall, fill it with items, then run the program. The turtle will then spiral towards the center of the room while building the floor.
+
+Once the turtle reaches the center, it will move up a block and place a block below it. To make it go down instead, provide any argument to the program.
+
+#### Install
+
+```
+wget https://raw.githubusercontent.com/Fatboychummy-CC/etc-programs/main/basic-floor-builder.lua
+```
+
 ### Safe Bridge ([safe-bridge.lua](safe-bridge.lua))
 A quick bridge program to get you across a chasm. It will place blocks in a 'v'
 shape in a straight line until it detects a block beneath or in front of it, or
