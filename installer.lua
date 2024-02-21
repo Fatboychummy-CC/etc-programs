@@ -28,10 +28,10 @@ local use_diffs = true
 -- not download (if including other diffs that have a file you don't want).
 -- You can also use "all" to include all files.
 -- # Note: Diffs are resolved breadth-first.
+-- # You can use ranges to include multiple files (i.e: '+1-3' to include 1 to 3).
 local diffs = {
   lib_only = {
-    "+1",
-    "+2"
+    "+1-2",
   },
   tests = {
     "lib_only",
@@ -162,14 +162,34 @@ local function calculate_diffs(version)
         if index then
           files[index] = true
         else
-          error(("Invalid index in diff: %s, position %d"):format(v, i), 0)
+          local i1, i2 = v:match("^%+(%d+)%-(%d+)$")
+          i1 = tonumber(i1)
+          i2 = tonumber(i2)
+
+          if i1 and i2 then
+            for j = i1, i2 do
+              files[j] = true
+            end
+          else
+            error(("Invalid index in diff: %s, position %d"):format(v, i), 0)
+          end
         end
       elseif v:match("^-") then
         local index = tonumber(v:sub(2))
         if index then
           files[index] = false
         else
-          error(("Invalid index in diff: %s, position %d"):format(v, i), 0)
+          local i1, i2 = v:match("^%-(%d+)%-(%d+)$")
+          i1 = tonumber(i1)
+          i2 = tonumber(i2)
+
+          if i1 and i2 then
+            for j = i1, i2 do
+              files[j] = false
+            end
+          else
+            error(("Invalid index in diff: %s, position %d"):format(v, i), 0)
+          end
         end
       elseif diffs[v] then
         -- We will fully resolve this diff before moving on to any "child" diffs.
