@@ -9,6 +9,51 @@ local to_get = {
 local program_name = ""
 local pinestore_id = nil -- Set this to the ID of the pinestore project if you wish to note to pinestore that a download has occurred.
 
+
+-- #################
+-- Advanced settings
+-- #################
+
+-- Set this to true if you wish to use the diffs to determine which files to
+-- download. Otherwise, it will download all files in `to_get`.
+-- Explanation of diffs is below.
+local use_diffs = true
+
+-- The 'diffs' are used to determine which files are needed to download for 
+-- whichever version of the program you wish to install.
+-- The key is the name of the version you wish to install, and the table it
+-- resolves to should be filled with strings containing either the name of
+-- another diff, a + followed by the index in `to_get` of the file you wish to
+-- download, or a - followed by the index in `to_get` of the file you wish to
+-- not download (if including other diffs that have a file you don't want).
+-- You can also use "all" to include all files.
+-- # Note: Diffs are resolved breadth-first.
+local diffs = {
+  lib_only = {
+    "+1",
+    "+2"
+  },
+  tests = {
+    "lib_only",
+    "+3"
+  },
+  all = {
+    "all"
+  },
+  all_but_one = {
+    "all",
+    "-1"
+  }
+}
+--[[
+  What version do you wish to install?
+  - lib_only
+  - tests
+  - all
+  - all_but_one
+  > 
+]]
+
 -- #########################################
 
 local RAW_URL_LIBRARIES = "https://raw.githubusercontent.com/Fatboychummy-CC/Libraries/main/"
@@ -18,6 +63,8 @@ local PINESTORE_ROOT = "https://pinestore.cc/"
 local PINESTORE_PROJECT_ENDPOINT = PINESTORE_ROOT .. "api/project/"
 local PINESTORE_DOWNLOAD_ENDPOINT = PINESTORE_ROOT .. "api/log/download"
 local p_dir = ... or shell.dir()
+
+local completion_choice = require "cc.completion".choice
 
 local function print_warning(...)
   term.setTextColor(colors.orange)
@@ -62,8 +109,99 @@ local function download_file(url, filename)
   error(("Failed to connect: %s"):format(err), 0)
 end
 
-local function get(...)
+local function get_version_to_download()
+  if use_diffs then
+    print("What version do you wish to install?")
+    local versions = {}
+    for k in pairs(diffs) do
+      print("-", k)
+      table.insert(versions, k)
+    end
+    write("> ")
+    local version = read(nil, nil, function(partial)
+      return completion_choice(partial, versions) --[[@as string[] ]]
+    end)
+    if diffs[version] then
+      return version
+    else
+      printError("Invalid version.")
+      return get_version_to_download()
+    end
+  else
+    return "all"
+  end
+end
+
+--- Calculate what files are needed to download.
+local function calculate_diffs(version)
+  local files = {}
+
+  if not version or not diffs[version] then
+    error("Invalid version.", 0)
+  end
+
+
+  local seen_diffs = {}
+  local to_resolve = {}
+
+  --- Resolve a single diff.
+  ---@param diff table<string> The diff to resolve.
+  local function resolve_diff(diff)
+    if seen_diffs[diff] then
+      print_warning(("Multiple references to diff '%s'. This is probably fine, but if this warning is being spammed you have a loop."):format(diff))
+    end
+    seen_diffs[diff] = true
+
+    for i, v in ipairs(diff) do
+      if v == "all" then
+        for j = 1, #to_get do
+          files[j] = true
+        end
+      elseif v:match("^%+") then
+        local index = tonumber(v:sub(2))
+        if index then
+          files[index] = true
+        else
+          error(("Invalid index in diff: %s, position %d"):format(v, i), 0)
+        end
+      elseif v:match("^-") then
+        local index = tonumber(v:sub(2))
+        if index then
+          files[index] = false
+        else
+          error(("Invalid index in diff: %s, position %d"):format(v, i), 0)
+        end
+      elseif diffs[v] then
+        -- We will fully resolve this diff before moving on to any "child" diffs.
+        table.insert(to_resolve, v)
+      else
+        error(("Invalid diff: %s"):format(v), 0)
+      end
+    end
+  end
+
+  to_resolve[1] = version
+  while #to_resolve > 0 do
+    local diff = table.remove(to_resolve, 1)
+    resolve_diff(diffs[diff])
+  end
+
+  -- Convert files to a list
+  local to_return = {}
+
+  for i = 1, #to_get do
+    if files[i] then
+      table.insert(to_return, to_get[i])
+    end
+  end
+
+  return to_return
+end
+
+local function get(version, ...)
   local remotes = table.pack(...)
+
+  local actual_to_get = calculate_diffs(version)
 
   for i = 1, remotes.n do
     local remote = remotes[i]
@@ -124,7 +262,7 @@ if pinestore_id then
       end
     end
   else
-    print_warning("Failed to connect to pinestore.")
+    print_warning("Failed to connect to PineStore. Installation will continue, but no description can be provided.")
   end
 end
 
@@ -139,8 +277,12 @@ until key == keys.y or key == keys.n
 if key == keys.y then
   print("y")
   sleep()
+
+  local version = get_version_to_download()
+  local actual_to_get = calculate_diffs(version)
+
   print(("Installing %s."):format(program_name))
-  get(table.unpack(to_get))
+  get(table.unpack(actual_to_get))
 
   if type(pinestore_id) == "number" then
     local handle, err = http.post(
