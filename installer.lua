@@ -218,10 +218,8 @@ local function calculate_diffs(version)
   return to_return
 end
 
-local function get(version, ...)
+local function get(...)
   local remotes = table.pack(...)
-
-  local actual_to_get = calculate_diffs(version)
 
   for i = 1, remotes.n do
     local remote = remotes[i]
