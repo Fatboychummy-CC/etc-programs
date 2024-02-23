@@ -147,7 +147,8 @@ if key == keys.y then
       PINESTORE_DOWNLOAD_ENDPOINT,
         textutils.serializeJSON({
           projectId = pinestore_id,
-        })
+        }),
+        {["Content-Type"] = "application/json"}
     )
     if handle then
       parse_pinestore_response(handle.readAll())
