@@ -17,7 +17,7 @@ local pinestore_id = nil -- Set this to the ID of the pinestore project if you w
 -- Set this to true if you wish to use the diffs to determine which files to
 -- download. Otherwise, it will download all files in `to_get`.
 -- Explanation of diffs is below.
-local use_diffs = true
+local use_diffs = false
 
 -- The 'diffs' are used to determine which files are needed to download for 
 -- whichever version of the program you wish to install.
@@ -62,7 +62,13 @@ local PASTE_URL = "https://pastebin.com/raw/"
 local PINESTORE_ROOT = "https://pinestore.cc/"
 local PINESTORE_PROJECT_ENDPOINT = PINESTORE_ROOT .. "api/project/"
 local PINESTORE_DOWNLOAD_ENDPOINT = PINESTORE_ROOT .. "api/log/download"
-local p_dir = shell.resolve(...) or shell.dir()
+local p_dir
+local dir_argument = ...
+if dir_argument then
+  p_dir = shell.resolve(dir_argument)
+else
+  p_dir = shell.dir()
+end
 
 local completion_choice = require "cc.completion".choice
 
