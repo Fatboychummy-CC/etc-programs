@@ -309,7 +309,7 @@ if key == keys.y then
   get(table.unpack(actual_to_get))
 
   if type(pinestore_id) == "number" then
-    local handle, err = http.post(
+    local handle, err, err_handle = http.post(
       PINESTORE_DOWNLOAD_ENDPOINT,
         textutils.serializeJSON({
           projectId = pinestore_id,
@@ -320,7 +320,13 @@ if key == keys.y then
       parse_pinestore_response(handle.readAll())
       handle.close()
     else
-      print_warning("Failed to connect to pinestore.")
+      if err_handle and err_handle.getResponseCode() == 429 then
+        -- Too many requests, something else logged a download already.
+        -- We don't need to do anything here, but we'll leave this blank if
+        -- statement here for clarity.
+      else
+        print_warning("Failed to connect to PineStore:", err)
+      end
     end
   end
 else
