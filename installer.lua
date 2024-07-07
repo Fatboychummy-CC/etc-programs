@@ -316,10 +316,7 @@ if key == keys.y then
         }),
         {["Content-Type"] = "application/json"}
     )
-    if handle then
-      parse_pinestore_response(handle.readAll())
-      handle.close()
-    else
+    if not handle then
       if err_handle and err_handle.getResponseCode() == 429 then
         -- Too many requests, something else logged a download already.
         -- We don't need to do anything here, but we'll leave this blank if
