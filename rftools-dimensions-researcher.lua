@@ -142,8 +142,15 @@ end
 --- Main function: Combine everything
 local function main()
   -- Loop until the researcher has no more lost knowledge items
+  local initial = true
+
   while true do
     local complete = move_knowledge_into_researcher()
+
+    if initial and complete then
+      error("There is nothing to research!", 0)
+    end
+    initial = false
 
     -- Wait for the researcher to finish researching
     wait_for_researcher()
