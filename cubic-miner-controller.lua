@@ -242,6 +242,9 @@ local function calibrate()
     else
       print("  Drill arm is not inverted.")
       drill_ok = true
+
+      -- Retract the drill arm.
+      run_motor_until_input(-calibration_drill_speed * drills_inverted, RS_SIDES.START)
     end
   elseif not drill_ok then
     print(" Drill arm is not at start position.")
@@ -281,6 +284,9 @@ local function calibrate()
     else
       print("  Drill arm is not inverted.")
       drill_ok = true
+
+      -- Retract the drill arm.
+      run_motor_until_input(-calibration_drill_speed * drills_inverted, RS_SIDES.START)
     end
   elseif not drill_ok then
     print(" Drill arm is not at finish position.")
