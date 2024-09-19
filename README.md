@@ -77,3 +77,11 @@ until a specified max distance.
 ```
 wget https://raw.githubusercontent.com/Fatboychummy-CC/etc-programs/main/safe-bridge.lua
 ```
+
+### Cubic Miner Controller ([cubic-miner-controller.lua](cubic-miner-controller.lua))
+Description to be properly added later.
+
+#### Install
+```
+wget https://raw.githubusercontent.com/Fatboychummy-CC/etc-programs/main/cubic-miner-controller.lua
+```
