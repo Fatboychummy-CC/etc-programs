@@ -16,9 +16,38 @@
 ---    degrees (this moves a gantry exactly one block), then shut down the motor.
 --- 5. Repeat from step 1 until the arm reaches the bottom position.
 
+--- This only has the methods we actually need. There are more methods available.
+---@class MekanismEnergyStorage : table
+---@field getEnergy fun():integer Get the current energy stored in the storage.
+---@field getMaxEnergy fun():integer Get the maximum amount of energy that can be stored in the storage.
 
 -- Find the electric motor.
 local motor = peripheral.find("electric_motor") --[[@as ElectricMotor]]
+local energy_storage = peripheral.find("energy_storage") --[[@as EnergyStorage|MekanismEnergyStorage|nil]]
+local energy_unit = "FE"
+
+---@type integer? The y position to write to.
+local write_y
+
+if not energy_storage then
+  -- See if we can find one of mekanism's energy cubes (because they implement
+  -- their own stupid API).
+
+  -- Of course, we also can't just do this with a single `peripheral.find` call,
+  -- because that would be too easy. No, instead each tier of energy cube is its
+  -- own type. So we will instead loop over every peripheral and check if it
+  -- has, in its name, `energycube`.
+
+  -- I hate working with mekanism when it comes to CC.
+
+  for _, name in pairs(peripheral.getNames()) do
+    if name:lower():find("energycube") then
+      energy_storage = peripheral.wrap(name) --[[@as MekanismEnergyStorage]]
+      energy_unit = "J"
+      break
+    end
+  end
+end
 
 --- The speed that the drills should be run at. Higher speeds will mine faster
 --- but consume significantly more power.
@@ -63,10 +92,15 @@ if not motor then
 end
 
 --- Write a line to the terminal, clearing the line first.
----@param y integer The y position to write to.
 ---@param text string The value to write to the terminal.
-local function wroite(y, text)
-  term.setCursorPos(1, y)
+---@param offset integer? The offset to write the text at.
+local function wroite(text, offset)
+  if not write_y then
+    print(text)
+    return
+  end
+
+  term.setCursorPos(1, write_y + (offset or 0))
   term.clearLine()
   write(text)
 end
@@ -133,25 +167,21 @@ end
 
 --- Mines a row of blocks.
 local function mine_row()
-  local _, y = term.getCursorPos()
-
   -- Toggle the active arm to the drills.
   activate_drills()
 
   -- Drill until the arm reaches the finish position.
-  wroite(y, "Status: Mining")
+  wroite("Status: Mining")
   run_motor_until_input(drill_speed * drills_inverted, RS_SIDES.FINISH)
 
   -- Retract the drills.
-  wroite(y, "Status: Retracting")
+  wroite("Status: Retracting")
   run_motor_until_input(-retract_speed * drills_inverted, RS_SIDES.START)
 end
 
 --- Mine the entire cube.
 local function mine()
-  local _, y = term.getCursorPos()
-
-  wroite(y, "Status: Ensure Start Position")
+  wroite("Status: Ensure Start Position")
 
   -- Step 1: Ensure the arm is in the start position.
   activate_drills()
@@ -161,7 +191,7 @@ local function mine()
   -- Step 2: Mine the cube.
   while not redstone.getInput(RS_SIDES.BOTTOM) do
     mine_row()
-    wroite(y, "Status: Next Row")
+    wroite("Status: Next Row")
     go_down()
   end
 
@@ -169,10 +199,10 @@ local function mine()
   mine_row()
 
   -- Step 3: Return the arms to the start position.
-  wroite(y, "Status: Returning Home")
+  wroite("Status: Returning Home")
   return_home()
 
-  wroite(y, "Status: Done")
+  wroite("Status: Done")
 end
 
 --- Calibrate the vertical and drill arms. We do this by moving the vertical arm
@@ -236,16 +266,12 @@ local function calibrate()
         drills_inverted = -1
         drill_ok = true
       end
-
-      -- Retract the drill arm.
-      run_motor_until_input(-calibration_drill_speed * drills_inverted, RS_SIDES.START)
     else
       print("  Drill arm is not inverted.")
       drill_ok = true
-
-      -- Retract the drill arm.
-      run_motor_until_input(-calibration_drill_speed * drills_inverted, RS_SIDES.START)
     end
+    -- Retract the drill arm.
+    run_motor_until_input(-calibration_drill_speed * drills_inverted, RS_SIDES.START)
   elseif not drill_ok then
     print(" Drill arm is not at start position.")
   end
@@ -284,9 +310,6 @@ local function calibrate()
     else
       print("  Drill arm is not inverted.")
       drill_ok = true
-
-      -- Retract the drill arm.
-      run_motor_until_input(-calibration_drill_speed * drills_inverted, RS_SIDES.START)
     end
   elseif not drill_ok then
     print(" Drill arm is not at finish position.")
@@ -369,7 +392,7 @@ end
 local argument = ...
 local drill_ok, vertical_ok
 
-local ok, err = pcall(function()
+local function main()
   drill_ok, vertical_ok = calibrate()
 
   if argument and argument:lower() == "calibrate" then
@@ -377,13 +400,114 @@ local ok, err = pcall(function()
   end
 
   if drill_ok and vertical_ok then
-    print("Calibration successful, mining...\n\n")
+    print(("Calibration successful, mining...\n\n%s"):format(energy_storage and "\n\n" or ""))
     write("Status: Initializing...")
+    local _
+    _, write_y = term.getCursorPos()
+    os.queueEvent("miner_initted")
     mine()
   else
     error("Calibration failed.", 0)
   end
-end)
+
+  print()
+end
+
+local function energy_watch()
+  if not energy_storage then
+    -- No energy storage, so we can't do anything.
+    -- Since this is ran as parallel though, we need to keep it running.
+    while true do os.pullEvent() end
+  end ---@cast energy_storage MekanismEnergyStorage|EnergyStorage
+
+  ---@type integer[] The previous 600 (max) energy readings from the energy storage. This is implemented circularly, so the newest reading is always `energy_history[eh_i]`, not `energy_history[#energy_history]`.
+  local energy_history = {}
+
+  ---@type integer The current size of the energy history.
+  local eh_n = 0
+
+  ---@type integer The current index of the energy history.
+  local eh_i = 0
+
+  --- Insert a new energy reading into the history.
+  ---@param energy integer The energy reading to insert.
+  local function insert_energy(energy)
+    if eh_i >= 600 then
+      eh_i = 0
+    end
+    eh_i = eh_i + 1
+    energy_history[eh_i] = energy
+
+    if eh_i > eh_n then
+      eh_n = eh_i
+    end
+  end
+
+  local function average_usage()
+    if eh_n <= 1 then
+      return 0
+    end
+
+    -- Calculate the average by subtracting the oldest reading from the newest
+    return (energy_history[eh_i] - energy_history[(eh_i % eh_n) + 1]) / eh_n
+  end
+
+  --- Format the time to be displayed on the screen. "xxh xxm xx.xxs"
+  ---@param seconds number The number of seconds to format.
+  local function format_time(seconds)
+    if seconds == math.huge then
+      return "--:--:--"
+    elseif seconds == 0 then
+      return "--:--:--"
+    end
+
+    local hours = math.floor(seconds / 3600)
+    seconds = seconds % 3600
+    local minutes = math.floor(seconds / 60)
+    seconds = seconds % 60
+
+    return ("%02d:%02d:%05.2f"):format(hours, minutes, seconds)
+  end
+
+  os.pullEvent("miner_initted") -- Wait until the miner is initialized.
+
+  local max_energy = energy_storage.getEnergyCapacity and energy_storage.getEnergyCapacity() or energy_storage.getMaxEnergy()
+
+  local second_tmr = os.startTimer(1)
+  while true do
+    local energy = energy_storage.getEnergy()
+
+    insert_energy(energy)
+
+    local avg = average_usage()
+    wroite(("Energy: %d / %d %s | %.2f %s/s"):format(energy, max_energy, energy_unit, avg, energy_unit), -2)
+
+    if avg > 0 then
+      wroite("Cell is charging.", -1)
+    else
+      local seconds = energy / -avg
+
+      if seconds == 0 or seconds ~= seconds or seconds == math.huge or seconds == -math.huge then
+        wroite("Time left: --:--:--", -1)
+      else
+        wroite(("Time left: %s (%ds)"):format(format_time(seconds), math.floor(seconds)), -1)
+
+        -- If there is less than 30 seconds of energy left, and we have at least 1
+        -- minute of data, then we should stop the miner.
+        if seconds < 30 and eh_n > 60 then
+          error("Energy Low.", 0)
+        end
+      end
+    end
+
+    -- We don't use `os.sleep` here, because `getEnergy`/`getEnergyCapacity` may
+    -- yield to the main thread for a tick.
+    repeat local _, timer_id = os.pullEvent() until timer_id == second_tmr
+    second_tmr = os.startTimer(1)
+  end
+end
+
+local ok, err = pcall(parallel.waitForAny, main, energy_watch)
 
 if not ok then
   printError(err)
