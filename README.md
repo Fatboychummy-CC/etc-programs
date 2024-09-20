@@ -58,9 +58,12 @@ wget https://raw.githubusercontent.com/Fatboychummy-CC/etc-programs/main/rftools
 ### Basic Floor Builder ([basic-floor-builder.lua](basic-floor-builder.lua))
 A simple program which builds a square floor for a room. 
 
-Place the turtle in any corner of the room so its right and front sides are facing the wall, fill it with items, then run the program. The turtle will then spiral towards the center of the room while building the floor.
+Place the turtle in any corner of the room so its right and front sides are
+facing the wall, fill it with items, then run the program. The turtle will then
+spiral towards the center of the room while building the floor.
 
-Once the turtle reaches the center, it will move up a block and place a block below it. To make it go down instead, provide any argument to the program.
+Once the turtle reaches the center, it will move up a block and place a block
+below it. To make it go down instead, provide any argument to the program.
 
 #### Install
 
@@ -79,7 +82,22 @@ wget https://raw.githubusercontent.com/Fatboychummy-CC/etc-programs/main/safe-br
 ```
 
 ### Cubic Miner Controller ([cubic-miner-controller.lua](cubic-miner-controller.lua))
-Description to be properly added later.
+This program is designed for a very specific Create contraption, so it is
+unlikely that anyone else will ever need to use it, but uploading to this repo
+anyways.
+
+This program will control a Create contraption that is designed to mine an
+"ore cube", which is just a giant cube of random (or specific) ores. The idea
+is mainly that these cubes will be generated within an RFTools dimension, and
+then this program can be used to get tons of ores. It is not very energy
+efficient to do this, but if you have a mining dimension like this, I assume you
+have power figured out.
+
+<details> <summary>Screenshots and Setup</summary>
+
+TODO: add screenshots and setup instructions
+
+</details>
 
 #### Install
 ```
