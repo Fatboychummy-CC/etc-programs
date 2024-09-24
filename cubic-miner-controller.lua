@@ -115,13 +115,19 @@ local function activate_vertical()
   redstone.setOutput(RS_SIDES.OUTPUT, false)
 end
 
---- Sets the active arm to the vertical arm and moves it down a block.
-local function go_down()
+--- Sets the active arm to the vertical arm and moves it down `n` blocks.
+---@param n integer The number of blocks to move the arm down.
+local function go_down_n(n)
   activate_vertical()
-  sleep(motor.translate(1, vertical_speed * vertical_inverted))
+  sleep(motor.translate(n, vertical_speed * vertical_inverted))
   motor.stop()
 
   sleep(0.5) -- Prevent too many movement commands being sent at once breaking the machine.
+end
+
+--- Sets the active arm to the vertical arm and moves it down a block.
+local function go_down()
+  go_down_n(1)
 end
 
 --- Run the motor until any of the given sides are triggered.
@@ -389,7 +395,7 @@ local function calibrate()
   return drill_ok, vertical_ok
 end
 
-local argument = ...
+local argument, distance = ...
 local drill_ok, vertical_ok
 
 local function main()
@@ -397,6 +403,17 @@ local function main()
 
   if argument and argument:lower() == "calibrate" then
     return
+  elseif argument and (argument:lower() == "skip" or argument:lower() == "resume") then
+    if not distance then
+      error("No distance provided to skip.", 0)
+    end
+    local n = tonumber(distance)
+    if not n then
+      error("Invalid distance provided to skip.", 0)
+    end
+
+    print("Skipping", distance, "rows.")
+    go_down_n(n)
   end
 
   if drill_ok and vertical_ok then
@@ -420,8 +437,9 @@ local function energy_watch()
     while true do os.pullEvent() end
   end ---@cast energy_storage MekanismEnergyStorage|EnergyStorage
 
-  ---@type integer[] The previous 600 (max) energy readings from the energy storage. This is implemented circularly, so the newest reading is always `energy_history[eh_i]`, not `energy_history[#energy_history]`.
+  ---@type integer[] The previous history_max energy readings from the energy storage. This is implemented circularly, so the newest reading is always `energy_history[eh_i]`, not `energy_history[#energy_history]`.
   local energy_history = {}
+  local history_max = 1200
 
   ---@type integer The current size of the energy history.
   local eh_n = 0
@@ -432,7 +450,7 @@ local function energy_watch()
   --- Insert a new energy reading into the history.
   ---@param energy integer The energy reading to insert.
   local function insert_energy(energy)
-    if eh_i >= 600 then
+    if eh_i >= history_max then
       eh_i = 0
     end
     eh_i = eh_i + 1
