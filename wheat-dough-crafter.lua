@@ -1,4 +1,4 @@
---- Crafts wheat dough forever n ever
+--- Crafts forever n ever
 
 -- VALUES THE USER CAN CHANGE
 
@@ -15,13 +15,17 @@ if not turtle then
   error("This program must be run on a turtle!", 0)
 end
 
+if not turtle.craft then
+  error("This turtle does not support crafting!", 0)
+end
+
 -- Collect the peripherals
 local modem = peripheral.wrap(MODEM_SIDE)
 local inv_in = peripheral.wrap(INPUT_INV)
 local inv_out = peripheral.wrap(OUTPUT_INV)
 
 -- Ensure the peripherals exist, and are the correct type
-if not modem or not peripheral.hasType(MODEM_SIDE, "peripheral_hub") then
+if not modem or not modem.getNameLocal then
   error("Wired modem not found!", 0)
 end
 
@@ -274,22 +278,79 @@ end
 
 --#endregion utility
 
+--#region UI
+
+--- Update the status line
+---@param text string
+local function update_status(text)
+  term.setCursorPos(1, 1)
+  term.clearLine()
+  term.write(("Status: %s"):format(text))
+end
+
+--- Update craft count line.
+---@param count integer
+local function update_craft_count(count)
+  term.setCursorPos(1, 2)
+  term.clearLine()
+  term.write(("Crafted %d times (this session)."):format(count))
+end
+
+--- Update secondary line.
+---@param text string
+local function update_secondary(text)
+  term.setCursorPos(1, 3)
+  term.clearLine()
+  term.write(text)
+end
+
+--- Displays a countdown.
+---@param time integer
+local function countdown(time)
+  for i = time, 1, -1 do
+    update_secondary(("Next in %d second%s"):format(i, i == 1 and "" or "s"))
+    sleep(1)
+  end
+  update_secondary("")
+end
+
+--#endregion UI
+
 --- Crafts wheat dough on repeat.
 local function craft_wheat_dough()
+  local craft_count = 0
+  update_status("Starting")
+  update_craft_count(craft_count)
+
   while true do
     -- Stage 1: Clean the inventory
+    update_status("Cleaning inventory")
     clean_inventory()
 
     -- Stage 2: Get wheat
+    update_status("Getting wheat")
     get_wheat()
 
     -- Stage 3: Collect water
-    if not collect_water() then
-      error("Failed to collect water!", 0)
+    update_status("Collecting water")
+    local crafted = false
+    if collect_water() then
+      -- Stage 4: Craft dough
+      update_status("Crafting dough")
+      crafted = turtle.craft()
     end
 
-    -- Stage 4: Craft dough
-    turtle.craft()
+    -- Stage 5: Sleep
+    if crafted then
+      update_status("Crafted!")
+      craft_count = craft_count + 1
+      update_craft_count(craft_count)
+      sleep(0.25)
+    else
+      -- If we didn't craft anything, sleep for a while.
+      update_status("Sleeping")
+      countdown(10)
+    end
   end
 end
 
