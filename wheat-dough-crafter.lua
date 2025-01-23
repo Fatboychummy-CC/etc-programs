@@ -3,8 +3,8 @@
 -- VALUES THE USER CAN CHANGE
 
 local MODEM_SIDE = "front"
-local INPUT_INV = "name_of_inventory_here"
-local OUTPUT_INV = "name_of_inventory_here"
+local INPUT_INV = "name of inventory here"
+local OUTPUT_INV = "name of inventory here"
 
 -- END OF USER VALUES
 
@@ -73,6 +73,17 @@ end
 
 --#region utility
 
+local tw, th = term.getSize()
+local log_win = window.create(term.current(), 1, 5, tw, th - 3)
+
+local function log(...)
+  local old = term.redirect(log_win)
+
+  print(...)
+
+  term.redirect(old)
+end
+
 --- If the inventory has changed, this will be true.
 local inv_dirty = true
 
@@ -84,6 +95,19 @@ local inv_dirty = true
 ---@type table<integer, ItemDetail> May contain holes
 local last_inv = {}
 
+--- Fetch the turtle's inventory.
+--- @return table<integer, ItemDetail> inventory
+local function fetch_inventory()
+  log("FETCH INV")
+  local list = {}
+
+  for i = 1, 16 do
+    list[i] = turtle.getItemDetail(i)
+  end
+
+  return list
+end
+
 --- Updates the turtle's inventory.
 ---@return table<integer, ItemDetail> inventory
 local function update_inventory()
@@ -91,16 +115,12 @@ local function update_inventory()
     return last_inv
   end
 
-  local list = {}
+  log("UPDATE INV")
 
-  for i = 1, 16 do
-    list[i] = inv_in.getItemDetail(i)
-  end
-
-  last_inv = list
+  last_inv = fetch_inventory()
   inv_dirty = false
 
-  return list
+  return last_inv
 end
 
 local function deep_copy(v)
@@ -130,25 +150,34 @@ local function run_queue()
   if #func_queue == 0 then
     return
   end
+  log("Running parallel queue")
+
   parallel.waitForAll(table.unpack(func_queue))
+  func_queue = {function()end}
   inv_dirty = true
+
+  log("Done")
 end
 
 --- Clean the inventory of any extra items.
 local function clean_inventory()
+  log("Cleaning out the inventory.")
+
   local items = update_inventory()
 
   for slot, item in pairs(items) do
     if slot == 1 then
       -- Slot 1 should be either a filled bucket or an empty bucket.
       if item and not item.name:find("bucket") then
+        log("Non bucket in slot 1")
         add_queue(function()
           inv_out.pullItems(t_name, 1)
         end)
       end
-    elseif slot >= 2 or slot <= 4 then
-      -- Slots 2-4 should be wheat.
+    elseif slot == 2 or slot == 3 or slot == 5 then
+      -- Slots 2,3,5 should be wheat.
       if item and item.name ~= "minecraft:wheat" then
+        log("Non wheat in slot", slot)
         add_queue(function()
           inv_out.pullItems(t_name, slot)
         end)
@@ -156,6 +185,7 @@ local function clean_inventory()
     else
       -- Other slots should be empty.
       if item then
+        log("Non empty slot", slot)
         add_queue(function()
           inv_out.pullItems(t_name, slot)
         end)
@@ -173,7 +203,7 @@ local function count_wheat_self()
   local items = update_inventory()
   local wheat_count = 0
 
-  for i = 2, 4 do
+  for i = 2, 5 do
     if items[i] and items[i].name == "minecraft:wheat" then
       wheat_count = wheat_count + items[i].count
     end
@@ -212,11 +242,19 @@ local function get_wheat()
     math.floor(wheat_in / 3)
   )
 
+  if splittable <= 0 then
+    log("No wheat to split")
+    return
+  end
+
+  log("Ordering", splittable, "wheat to 2,3,5")
+
   local input_cache = deep_copy(in_items)
 
   -- 1.2 : Push wheat from the input inventory to the turtle.
 
   local function push_n_wheat(n, to_slot)
+    log("Pushing", n, "wheat to slot", to_slot)
     local to_remove = {}
 
     for slot, item in pairs(input_cache) do
@@ -233,6 +271,10 @@ local function get_wheat()
         if item.count == 0 then
           to_remove[slot] = true
         end
+
+        if n <= 0 then
+          break
+        end
       end
     end
 
@@ -241,9 +283,34 @@ local function get_wheat()
     end
   end
 
-  for slot = 2, 4 do
-    push_n_wheat(splittable, slot)
+  local max_wheat_self = math.max(
+    self_items[2] and self_items[2].count or 0,
+    self_items[3] and self_items[3].count or 0,
+    self_items[5] and self_items[5].count or 0
+  )
+
+
+  -- Equalize the wheat in slots 2,3,5
+  -- This may cause overflow, which is why we keep max 32 wheat in each slot.
+  if self_items[2] and self_items[2].count < max_wheat_self then
+    -- Push the difference.
+    push_n_wheat(max_wheat_self - (self_items[2].count or 0), 2)
   end
+
+  if self_items[3] and self_items[3].count < max_wheat_self then
+    -- Push the difference.
+    push_n_wheat(max_wheat_self - (self_items[3].count or 0), 3)
+  end
+
+  if self_items[5] and self_items[5].count < max_wheat_self then
+    -- Push the difference.
+    push_n_wheat(max_wheat_self - (self_items[5].count or 0), 5)
+  end
+
+  -- Push the requested amount of wheat to the turtle.
+  push_n_wheat(splittable, 2)
+  push_n_wheat(splittable, 3)
+  push_n_wheat(splittable, 5)
 
   run_queue()
 end
@@ -273,7 +340,49 @@ local function collect_water()
   end
 
   -- Has water now?
-  return update_inventory()[1].name == "minecraft:water_bucket"
+  return fetch_inventory()[1].name == "minecraft:water_bucket"
+end
+
+--- Check that we have a bucket, if we do, ensure it's in slot 1.
+---@return boolean has_bucket
+local function check_bucket()
+  local items = fetch_inventory()
+
+  for slot, item in pairs(items) do
+    if item.name:find("bucket") then
+      if slot == 1 then
+        return true
+      end
+
+      -- Otherwise, we need to move it into slot 1.
+
+      -- Find the first open slot in the turtle's inventory.
+      local open_slot = nil
+      for i = 2, 16 do
+        if not items[i] then
+          open_slot = i
+          break
+        end
+      end
+
+      if not open_slot then
+        return false
+      end
+
+      -- And push whatever is in slot 1 to that slot.
+      turtle.select(1)
+      turtle.transferTo(open_slot)
+
+      -- Then, move the bucket to slot 1.
+      turtle.select(slot)
+      turtle.transferTo(1)
+
+      turtle.select(1)
+      return true
+    end
+  end
+
+  return false
 end
 
 --#endregion utility
@@ -282,10 +391,19 @@ end
 
 --- Update the status line
 ---@param text string
-local function update_status(text)
+---@param color integer?
+local function update_status(text, color)
   term.setCursorPos(1, 1)
   term.clearLine()
+  if color then
+    term.setTextColor(color)
+  end
+
   term.write(("Status: %s"):format(text))
+
+  if color then
+    term.setTextColor(colors.white)
+  end
 end
 
 --- Update craft count line.
@@ -316,13 +434,51 @@ end
 
 --#endregion UI
 
+local t_inv_timer
+
+--- Parallel thread that watches for turtle_inventory events, and marks the inventory as dirty.
+local function watch_inventory()
+  while true do
+    os.pullEvent("turtle_inventory")
+    inv_dirty = true
+
+    update_secondary("Inventory updated!")
+    t_inv_timer = os.startTimer(0.5)
+  end
+end
+
+--- Parallel thread which clears the secondary message after a turtle inventory notification.
+local function clear_secondary()
+  while true do
+    local _, timer_id = os.pullEvent("timer")
+    if timer_id == t_inv_timer then
+      update_secondary("")
+    end
+  end
+end
+
 --- Crafts wheat dough on repeat.
 local function craft_wheat_dough()
+  term.clear()
+
+  -- Draw the divider
+  term.setCursorPos(1, 4)
+  term.setBackgroundColor(colors.gray)
+  term.clearLine()
+  term.setBackgroundColor(colors.black)
+
   local craft_count = 0
   update_status("Starting")
   update_craft_count(craft_count)
 
   while true do
+    -- Stage 1: Check that we have a bucket.
+    update_status("Checking for bucket")
+    while not check_bucket() do
+      update_status("Requires bucket!", colors.red)
+      os.pullEvent("turtle_inventory")
+    end
+
     -- Stage 1: Clean the inventory
     update_status("Cleaning inventory")
     clean_inventory()
@@ -342,17 +498,21 @@ local function craft_wheat_dough()
 
     -- Stage 5: Sleep
     if crafted then
-      update_status("Crafted!")
+      update_status("Crafted!", colors.green)
       craft_count = craft_count + 1
       update_craft_count(craft_count)
-      sleep(0.25)
+      sleep()
     else
       -- If we didn't craft anything, sleep for a while.
-      update_status("Sleeping")
+      update_status("Sleeping", colors.blue)
       countdown(10)
     end
   end
 end
 
 -- Start the program
-craft_wheat_dough()
+parallel.waitForAny(
+  watch_inventory,
+  clear_secondary,
+  craft_wheat_dough
+)
