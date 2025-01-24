@@ -103,3 +103,24 @@ TODO: add screenshots and setup instructions
 ```
 wget https://raw.githubusercontent.com/Fatboychummy-CC/etc-programs/main/cubic-miner-controller.lua
 ```
+
+### Wheat Dough Crafter ([wheat-dough-crafter.lua](wheat-dough-crafter.lua))
+This program is designed to craft Wheat Dough from the Farmer's Delight mod.
+It requires a bucket and an infinite water source below itself, as well as
+an input inventory (filled with wheat), and an output inventory (or 
+inventor*ies* -- if multiple are given, the turtle will fill them
+round-robin).
+
+It will continuously craft wheat dough for its lifetime, making this tedious
+recipe a little bit easier to deal with.
+
+<details> <summary>Screenshots and Setup</summary>
+
+TODO: add screenshots and setup instructions
+
+</details>
+
+#### Install
+```
+wget https://raw.githubusercontent.com/Fatboychummy-CC/etc-programs/main/wheat-dough-crafter.lua
+```

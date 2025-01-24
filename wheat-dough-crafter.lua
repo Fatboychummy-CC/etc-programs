@@ -2,9 +2,66 @@
 
 -- VALUES THE USER CAN CHANGE
 
+--- The side of the turtle the modem is on.
+---  -> Be careful not to place the modem on the same 
+---  -> side as the crafting table, as it will block
+---  -> access to the modem.
+---@type "front"|"back"|"top"|"bottom"|"left"|"right"
 local MODEM_SIDE = "front"
+
+--- The name of the input inventory on the wired modem network.
+---@type string
 local INPUT_INV = "name of inventory here"
-local OUTPUT_INV = "name of inventory here"
+
+--- The names of the output inventories on the wired modem network.
+---  -> Note that there is also the option to use the `OUTPUT_TYPE` variable below.
+---  -> Items are pulled in round-robin fashion for more than one output inventory.
+---@type string[] A list of strings, separated by commas.
+local OUTPUT_INVS = {
+  "name of inventory here",
+  "name of inventory here",
+}
+
+--- Whether or not to pull items to all inventories of a given type, rather than specific inventories.
+---@type boolean yay or nay
+local USE_OUTPUT_TYPE = false
+
+--- If `USE_OUTPUT_TYPE` is true, this is the type of inventory to push items to.
+---  -> Avoid using the same type of inventory here as the input inventory!
+---@type string `minecraft:chest`, `minecraft:furnace`, etc.
+local OUTPUT_TYPE = "minecraft:furnace"
+
+--- The target slot to output items to.
+---  -> If left `nil`, will pull to all slots.
+---@type integer?
+local OUTPUT_SLOT = nil
+
+--- The `modid:name` of the water bucket.
+---@type string
+local WATER_BUCKET = "minecraft:water_bucket"
+
+--- The `modid:name` of the empty bucket.
+---@type string
+local BUCKET = "minecraft:bucket"
+
+--- The `modid:name` of wheat.
+---@type string
+local WHEAT = "minecraft:wheat"
+
+--- The `modid:name` of wheat dough.
+---@type string
+local WHEAT_DOUGH = "farmersdelight:wheat_dough"
+
+--- The maximum items per slot of the output item in the output inventory.
+---@type integer
+local MAX_ITEMS_PER_SLOT = 64
+
+--- The slots of the given inventories that should be ignored when checking if space is available within the inventory.
+---@type table<string, table<integer, true>>
+local BAD_SLOTS = {
+  ["minecraft:furnace"] = {[2]=true, [3]=true}, -- Slot 2: Fuel, Slot 3: Output
+  ["minecraft:smoker"] = {[2]=true, [3]=true} -- Slot 2: Fuel, Slot 3: Output
+}
 
 -- END OF USER VALUES
 
@@ -22,19 +79,38 @@ end
 -- Collect the peripherals
 local modem = peripheral.wrap(MODEM_SIDE)
 local inv_in = peripheral.wrap(INPUT_INV)
-local inv_out = peripheral.wrap(OUTPUT_INV)
+local invs_out = {}
 
 -- Ensure the peripherals exist, and are the correct type
 if not modem or not modem.getNameLocal then
-  error("Wired modem not found!", 0)
+  error("Wired modem could not be wrapped!", 0)
 end
 
 if not inv_in or not peripheral.hasType(INPUT_INV, "inventory") then
-  error("Input inventory was not found!", 0)
+  error("Input inventory could not be wrapped!", 0)
 end
 
-if not inv_out or not peripheral.hasType(OUTPUT_INV, "inventory") then
-  error("Output inventory was not found!", 0)
+if USE_OUTPUT_TYPE then
+  -- Like peripheral.find, but only operates on whatever is connected to the modem.
+  for _, inv_name in ipairs(modem.getNamesRemote()) do
+    if peripheral.hasType(inv_name, OUTPUT_TYPE) then
+      table.insert(invs_out, peripheral.wrap(inv_name))
+    end
+  end
+else
+  for _, inv_name in ipairs(OUTPUT_INVS) do
+    table.insert(invs_out, peripheral.wrap(inv_name))
+  end
+end
+
+if #invs_out == 0 then
+  error("No output inventories found!", 0)
+end
+
+for _, inv in ipairs(invs_out) do
+  if not inv or not peripheral.hasType(inv, "inventory") then
+    error(("Output inventory %s could not be wrapped!"):format(peripheral.getName(inv)), 0)
+  end
 end
 
 -- Ensure the input/output chests are on the modem network
@@ -55,10 +131,6 @@ end
 
 if not check_peripheral(INPUT_INV) then
   error("Input inventory is not on the modem network!", 0)
-end
-
-if not check_peripheral(OUTPUT_INV) then
-  error("Output inventory is not on the modem network!", 0)
 end
 
 -- Get the turtle's name on the network
@@ -159,36 +231,138 @@ local function run_queue()
   log("Done")
 end
 
+local last_inv_index = 0
+local n_invs = #invs_out
+
+--- Round-robin pull items to the output inventories.
+--- Requires context of the output inventories.
+--- Should only be called if there are more than one output inventories.
+---@param from_slot integer The slot to move items from in the turtle.
+---@param count integer The amount of items that need to be moved.
+---@return boolean success
+local function round_robin_pull(from_slot, count)
+  -- Stage 1: Get the context of all output inventories.
+  local context = {}
+  for i, inv in ipairs(invs_out) do
+    context[i] = {}
+    add_queue(function()
+      context[i].list = inv.list()
+    end)
+    add_queue(function()
+      context[i].size = inv.size()
+    end)
+  end
+
+  run_queue()
+
+  -- Stage 2: From the last_inv_index, find an inventory with space.
+  local success = false
+  for i = 1, n_invs do
+    last_inv_index = (last_inv_index % n_invs) + 1
+    local inv = context[last_inv_index].list
+
+  if OUTPUT_SLOT then
+      -- Count only the items in the output slot.
+      if not inv[OUTPUT_SLOT] or inv[OUTPUT_SLOT].count < MAX_ITEMS_PER_SLOT then
+        local c_inv_index = last_inv_index
+        add_queue(function()
+          invs_out[c_inv_index].pullItems(t_name, from_slot, nil, OUTPUT_SLOT)
+        end)
+
+        local moved = math.min(count, MAX_ITEMS_PER_SLOT - (inv[OUTPUT_SLOT] or {count=0}).count)
+
+        count = count - moved
+
+        -- If we haven't moved enough items yet, continue.
+        if count <= 0 then
+          -- Otherwise stop.
+          success = true
+          break
+        end
+      end
+    else
+      -- See if there's any space at all in the inventory.
+      local item_space = 0
+      local p_type = peripheral.getType(invs_out[last_inv_index])
+      for i = 1, context[last_inv_index].size do
+        if not BAD_SLOTS[p_type] or not BAD_SLOTS[p_type][i] then 
+          if not inv[i] then
+            item_space = item_space + MAX_ITEMS_PER_SLOT
+          elseif inv[i].name == WHEAT_DOUGH then
+            item_space = item_space + MAX_ITEMS_PER_SLOT - inv[i].count
+          end
+        end
+      end
+
+      if item_space > 0 then
+        add_queue(function()
+    invs_out[last_inv_index].pullItems(t_name, from_slot)
+        end)
+
+        local moved = math.min(count, item_space)
+
+        count = count - moved
+
+        -- If we haven't moved enough items yet, continue.
+        if count <= 0 then
+          -- Otherwise stop.
+          success = true
+          break
+        end
+      end
+  end
+end
+
+  run_queue()
+
+  return success
+end
+
+
+
 --- Clean the inventory of any extra items.
 local function clean_inventory()
   log("Cleaning out the inventory.")
 
   local items = update_inventory()
 
+  -- Stage 1: Move wheat dough to the output inventories.
   for slot, item in pairs(items) do
+    if item.name == WHEAT_DOUGH then
+      if n_invs == 1 then
+      add_queue(function()
+          invs_out[1].pullItems(t_name, slot)
+      end)
+      else
+        round_robin_pull(slot, item.count)
+      end
+    end
+  end
+
+  -- Stage 2: Move anything that shouldn't be in the turtle back into the input inventory.
+  for slot, item in pairs(items) do
+    if item and item.name ~= WHEAT_DOUGH then
     if slot == 1 then
       -- Slot 1 should be either a filled bucket or an empty bucket.
-      if item and not item.name:find("bucket") then
-        log("Non bucket in slot 1")
+      if item and item.name ~= WATER_BUCKET and item.name ~= BUCKET then
         add_queue(function()
-          inv_out.pullItems(t_name, 1)
+          inv_in.pullItems(t_name, 1)
         end)
       end
     elseif slot == 2 or slot == 3 or slot == 5 then
       -- Slots 2,3,5 should be wheat.
-      if item and item.name ~= "minecraft:wheat" then
-        log("Non wheat in slot", slot)
+      if item and item.name ~= WHEAT then
         add_queue(function()
-          inv_out.pullItems(t_name, slot)
+          inv_in.pullItems(t_name, slot)
         end)
       end
     else
       -- Other slots should be empty.
       if item then
-        log("Non empty slot", slot)
         add_queue(function()
-          inv_out.pullItems(t_name, slot)
+          inv_in.pullItems(t_name, slot)
         end)
+        end
       end
     end
   end
@@ -204,7 +378,7 @@ local function count_wheat_self()
   local wheat_count = 0
 
   for i = 2, 5 do
-    if items[i] and items[i].name == "minecraft:wheat" then
+    if items[i] and items[i].name == WHEAT then
       wheat_count = wheat_count + items[i].count
     end
   end
@@ -220,7 +394,7 @@ local function count_wheat_in()
   local wheat_count = 0
 
   for _, item in pairs(items) do
-    if item.name == "minecraft:wheat" then
+    if item.name == WHEAT then
       wheat_count = wheat_count + item.count
     end
   end
@@ -243,22 +417,22 @@ local function get_wheat()
   )
 
   if splittable <= 0 then
-    log("No wheat to split")
+    log("No", WHEAT, "to split")
     return
   end
 
-  log("Ordering", splittable, "wheat to 2,3,5")
+  log("Ordering", splittable, WHEAT, "to 2,3,5")
 
   local input_cache = deep_copy(in_items)
 
   -- 1.2 : Push wheat from the input inventory to the turtle.
 
   local function push_n_wheat(n, to_slot)
-    log("Pushing", n, "wheat to slot", to_slot)
+    log("Pushing", n, WHEAT, "to slot", to_slot)
     local to_remove = {}
 
     for slot, item in pairs(input_cache) do
-      if item.name == "minecraft:wheat" then
+      if item.name == WHEAT then
         local to_push = math.min(n, item.count)
         add_queue(function()
           inv_in.pushItems(t_name, slot, to_push, to_slot)
@@ -322,12 +496,12 @@ local function collect_water()
   local items = update_inventory()
 
   -- 1.1: Has bucket?
-  if not items[1] or not items[1].name:find("bucket") then
+  if not items[1] or (items[1].name ~= BUCKET and items[1].name ~= WATER_BUCKET) then
     return false
   end
 
   -- 1.2: Is it water?
-  if items[1].name == "minecraft:water_bucket" then
+  if items[1].name == WATER_BUCKET then
     return true
   end
 
@@ -340,7 +514,7 @@ local function collect_water()
   end
 
   -- Has water now?
-  return fetch_inventory()[1].name == "minecraft:water_bucket"
+  return fetch_inventory()[1].name == WATER_BUCKET
 end
 
 --- Check that we have a bucket, if we do, ensure it's in slot 1.
@@ -349,7 +523,7 @@ local function check_bucket()
   local items = fetch_inventory()
 
   for slot, item in pairs(items) do
-    if item.name:find("bucket") then
+    if item.name == BUCKET or item.name == WATER_BUCKET then
       if slot == 1 then
         return true
       end
@@ -464,7 +638,8 @@ local function craft_wheat_dough()
   -- Draw the divider
   term.setCursorPos(1, 4)
   term.setBackgroundColor(colors.gray)
-  term.clearLine()
+  term.setTextColor(colors.black)
+  term.write(('\x8c'):rep(tw))
   term.setBackgroundColor(colors.black)
 
   local craft_count = 0
@@ -511,8 +686,16 @@ local function craft_wheat_dough()
 end
 
 -- Start the program
-parallel.waitForAny(
+local ok, err = pcall(
+  parallel.waitForAny,
   watch_inventory,
   clear_secondary,
   craft_wheat_dough
 )
+
+if not ok then
+  term.clear()
+  term.setCursorPos(1, 1)
+  term.setTextColor(colors.red)
+  error(err, 0)
+end
