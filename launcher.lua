@@ -111,13 +111,16 @@ local function refresh()
     main_win.setCursorPos(1, i)
     if i == selected then
       main_win.setTextColor(pal.yellow)
-      main_win.write(selector)
+      main_win.write(selector .. ' ')
+      main_win.setBackgroundColor(pal.mantle)
+      main_win.setTextColor(pal.blue)
     else
-      main_win.write(' ')
+      main_win.setBackgroundColor(pal.surface_0)
+      main_win.setTextColor(pal.text)
+      main_win.write('  ')
     end
 
-    main_win.setTextColor(pal.text)
-    main_win.write((" [%%%ds] : %%s"):format(longest_id):format(entry.id, entry.name))
+    main_win.write(("[%%%ds] : %%s"):format(longest_id):format(entry.id, entry.name))
   end
 
   main_win.setVisible(true) -- Resume updating the screen
@@ -134,7 +137,7 @@ while true do
   refresh()
   local _, key = os.pullEvent("key")
 
-  if key == keys.up then
+  if key == keys.up or key == keys.w then
     if selected > 1 then
       selected = selected - 1
     elseif scroll_index > 0 then
@@ -144,7 +147,7 @@ while true do
       scroll_index = math.max(0, #selections - mwh)
       selected = math.min(mwh, #selections)
     end
-  elseif key == keys.down then
+  elseif key == keys.down or key == keys.s then
     if scroll_index + selected < #selections then
       if selected < mwh then
         selected = selected + 1
@@ -156,7 +159,7 @@ while true do
       scroll_index = 0
       selected = 1
     end
-  elseif key == keys.enter then
+  elseif key == keys.enter or key == keys.space then
     select_computer()
   elseif key == keys.q then
     break
