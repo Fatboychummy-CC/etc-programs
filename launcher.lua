@@ -3,6 +3,16 @@
 --- Requires my catppuccin library.
 --- https://github.com/Fatboychummy-CC/Libraries/blob/main/catppuccin.lua
 
+--- Create a file named `computer_data.lua` in the same directory as this program, then add the following:
+--- ```lua
+--- return {
+---  [computer_id] = "Computer Name",
+---  -- ...
+--- }
+--- ```
+--- Of course, replace 'computer_id' and "Computer Name" with your actual computer ID and name.
+--- The program will then display these, and allow you to select them as a list.
+
 ---@module 'periphemu'
 
 local catppuccin = require "catppuccin"
