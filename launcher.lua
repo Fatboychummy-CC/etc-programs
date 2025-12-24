@@ -339,7 +339,9 @@ local function remove_computer()
       "Remove Computer",
       "",
       {
-        ("Are you sure you want to remove %s (%s)?"):format(tostring(id), computer_data[id]),
+        "Are you sure you want to remove:",
+        ("  ID: %d | Name: %s"):format(id, computer_data[id]),
+        "",
         "Type 'YES' to confirm.",
         "Case sensitive."
       },
