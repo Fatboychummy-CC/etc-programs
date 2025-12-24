@@ -98,13 +98,15 @@ end
 table.sort(selections, function(a, b) return a.id < b.id end)
 
 local longest_id = 0
-for _, entry in ipairs(selections) do
-  local id_length = #tostring(entry.id)
-  if id_length > longest_id then
-    longest_id = id_length
+local function recalculate_longest_id()
+  for _, entry in ipairs(selections) do
+    local id_length = #tostring(entry.id)
+    if id_length > longest_id then
+      longest_id = id_length
+    end
   end
 end
-
+recalculate_longest_id()
 
 
 local function rewrite_data_file()
@@ -117,6 +119,10 @@ local function rewrite_data_file()
     "return " .. textutils.serialize(computer_data)
   )
   file.close()
+
+  -- Most likely we've changed something, so recalculate longest_id.
+  longest_id = 0
+  recalculate_longest_id()
 end
 
 
@@ -324,6 +330,36 @@ end
 
 
 
+local function remove_computer()
+  local selection = scroll_index + selected
+  if selections[selection] then
+    local id = selections[selection].id
+
+    local response = input_page(
+      "Remove Computer",
+      "",
+      {
+        ("Are you sure you want to remove %s (%s)?"):format(tostring(id), computer_data[id]),
+        "Type 'YES' to confirm.",
+        "Case sensitive."
+      },
+      false,
+      true
+    )
+
+    if response == "YES" then
+      computer_data[id] = nil
+      table.remove(selections, selection)
+      message(pal.green, "Removed computer.")
+      rewrite_data_file()
+    else
+      message(pal.yellow, "Cancelled removal.")
+    end
+  end
+end
+
+
+
 local function refresh()
   main_win.setVisible(false) -- Stop updating the screen
   main_win.setBackgroundColor(pal.surface_0)
@@ -408,8 +444,14 @@ local function main()
       select_computer()
     elseif key == keys.n and keys_held[keys.leftShift] then
       new_computer()
+      selected = 1
+      scroll_index = 0
     elseif key == keys.e and keys_held[keys.leftShift] then
       edit_computer()
+    elseif key == keys.r and keys_held[keys.leftShift] then
+      remove_computer()
+      selected = 1
+      scroll_index = 0
     elseif key == keys.q and keys_held[keys.leftShift] then
       break
     end
