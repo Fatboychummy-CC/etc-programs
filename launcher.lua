@@ -188,15 +188,6 @@ local function input_page(title, right_title, texts, response_is_number, can_be_
 
   local old = term.redirect(write_win)
 
-  local function write_message(color, message)
-    write_win.clear()
-    write_win.setCursorPos(1, 1)
-    write_win.setTextColor(color)
-    write_win.write(message)
-    sleep(2)
-    write_win.setTextColor(pal.blue)
-  end
-
   local response
   while true do
     write_win.clear()
