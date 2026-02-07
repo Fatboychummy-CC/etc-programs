@@ -65,7 +65,7 @@ local PINESTORE_ROOT = "https://pinestore.cc/"
 local PINESTORE_PROJECT_ENDPOINT = PINESTORE_ROOT .. "api/project/"
 local PINESTORE_DOWNLOAD_ENDPOINT = PINESTORE_ROOT .. "api/log/download"
 local p_dir
-local dir_argument = ...
+local dir_argument, force = ...
 if dir_argument then
   p_dir = shell.resolve(dir_argument)
 else
@@ -275,7 +275,7 @@ local function get(...)
 
       local func, err = load(installer, "remote-installer", "t", _ENV)
       if func then
-        local ok, err2 = pcall(func, path)
+        local ok, err2 = pcall(func, path, "y")
         if not ok then
           error(("Remote installer from '%s' failed: %s"):format(remote_installer, err2), 0)
         end
@@ -321,10 +321,14 @@ end
 write(("Going to install to:\n  /%s\n\nIs this where you want it to be installed? (y/n): "):format(fs.combine(p_dir, "/*")))
 
 local key
-repeat
-  local _, _key = os.pullEvent("key")
-  key = _key
-until key == keys.y or key == keys.n
+if force ~= "y" then
+  repeat
+    local _, _key = os.pullEvent("key")
+    key = _key
+  until key == keys.y or key == keys.n
+else
+  key = keys.y
+end
 
 if key == keys.y then
   print("y")
