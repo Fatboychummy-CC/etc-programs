@@ -275,7 +275,7 @@ local function get(...)
 
       local func, err = load(installer, "remote-installer", "t", _ENV)
       if func then
-        local ok, err2 = pcall(func, fs.combine(p_dir, path))
+        local ok, err2 = pcall(func, path)
         if not ok then
           error(("Remote installer from '%s' failed: %s"):format(remote_installer, err2), 0)
         end
