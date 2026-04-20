@@ -1,7 +1,9 @@
 -- "Screams" a message into a chatbox whenever specific entities are detected.
 
-local DETECTOR_RANGE = 16
 local YOUR_NAME = "fatboychummy"
+local LOCATION_NAME = "Main Base"
+local SCAN_RATE = 2.05 -- Depends on AP config.
+local DETECTOR_RANGE = 16 -- Depends on AP config.
 
 local envDetector = peripheral.find "environmentDetector" --[[@as EnvironmentDetector]]
 if not envDetector then
@@ -43,6 +45,27 @@ end
 ---@field possibleEntities string[]? A list of possible entities that could be represented by this name.
 ---@field resolutions table<string, string>? Map of name -> resolution, for cases where the same name can represent multiple entities.
 
+---@type table<string, true>
+local IGNORE_LIST = {
+  ["Sheep"] = true,
+  ["Cow"] = true,
+  ["Pig"] = true,
+  ["Chicken"] = true,
+  ["Villager"] = true,
+  ["Spider"] = true,
+  ["Zombie"] = true,
+  ["Skeleton"] = true,
+  ["Creeper"] = true,
+  ["Enderman"] = true,
+  ["Witch"] = true,
+  ["Wandering Trader"] = true,
+  ["Parrot"] = true,
+  ["Ocelot"] = true,
+  ["Cat"] = true,
+  ["Rabbit"] = true,
+  ["Llama"] = true,
+  ["Donkey"] = true,
+}
 
 ---@type table<string, NameLookupEntry>
 local NAME_LOOKUP = {
@@ -158,6 +181,10 @@ local NAME_LOOKUP = {
     name = "The Eye",
     resolution = "Block it or yourself in."
   },
+  ["I see you."] = {
+    name = "Eye",
+    resolution = "Harmless."
+  },
 
   meta_duo = {
     name = "Imposter (sus)",
@@ -185,7 +212,7 @@ do
 end
 
 local DEFAULT_LOOKUP = {
-  name = "%s",
+  name = "%s (unknown)",
   resolution = "Unknown resolution."
 }
 
@@ -239,7 +266,7 @@ end
 local function notifyPlayer(nameStr, resolutionStr)
   repeat sleep() until chatBox.sendToastToPlayer(
     nameStr,
-    "Entity Detected",
+    LOCATION_NAME,
     YOUR_NAME,
     "-",
     "->"
@@ -248,7 +275,7 @@ local function notifyPlayer(nameStr, resolutionStr)
   repeat sleep() until chatBox.sendMessageToPlayer(
     resolutionStr,
     YOUR_NAME,
-    "Entity Detection",
+    LOCATION_NAME,
     "[]"
   )
 end
@@ -275,21 +302,23 @@ local function entityFilter(entities)
   local has_seen_ignored = false
 
   for _, entity in ipairs(entities) do
-    if not entityLastSent[entity.name] then
-      entityLastSent[entity.name] = 0
-    end
-    if entity.name == YOUR_NAME then
-      if has_seen_ignored then
-        if entityLastSent[YOUR_NAME] and os.epoch "utc" - entityLastSent[YOUR_NAME] > 10 * 1000 then
-          table.insert(caredAbout, {name="meta_duo"})
-          entityLastSent[YOUR_NAME] = os.epoch "utc"
-        end
+    if not IGNORE_LIST[entity.name] then
+      if not entityLastSent[entity.name] then
+        entityLastSent[entity.name] = 0
       end
-      has_seen_ignored = true
-    else
-      if entityLastSent[entity.name] and os.epoch "utc" - entityLastSent[entity.name] > 10 * 1000 then
-        table.insert(caredAbout, entity)
-        entityLastSent[entity.name] = os.epoch "utc"
+      if entity.name == YOUR_NAME then
+        if has_seen_ignored then
+          if entityLastSent[YOUR_NAME] and os.epoch "utc" - entityLastSent[YOUR_NAME] > 10 * 1000 then
+            table.insert(caredAbout, {name="meta_duo"})
+            entityLastSent[YOUR_NAME] = os.epoch "utc"
+          end
+        end
+        has_seen_ignored = true
+      else
+        if entityLastSent[entity.name] and os.epoch "utc" - entityLastSent[entity.name] > 10 * 1000 then
+          table.insert(caredAbout, entity)
+          entityLastSent[entity.name] = os.epoch "utc"
+        end
       end
     end
   end
@@ -299,13 +328,16 @@ end
 
 local function main()
   while true do
+    local initial_tick_time = os.clock()
     local entities = entityFilter(scan())
     for _, entity in ipairs(entities) do
       local nameStr, resolutionStr = entityIsNear(entity.name)
       notifyPlayer(nameStr, resolutionStr)
     end
-
-    sleep(2)
+    local elapsed = os.clock() - initial_tick_time
+    if elapsed < SCAN_RATE then
+      sleep(SCAN_RATE - elapsed)
+    end
   end
 end
 
